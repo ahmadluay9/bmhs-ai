@@ -1,0 +1,52 @@
+sources:
+  my-bigquery-source:
+    kind: bigquery
+    project: bmhs-ai
+    location: asia-southeast2
+
+tools:
+  search-pasien-by-name:
+    kind: bigquery-execute-sql
+    source: my-bigquery-source
+    description: Mencari data pasien berdasarkan nama lengkap.
+    parameters:
+      - name: nama
+        type: string
+        description: Nama lengkap pasien yang ingin dicari.
+    statement: |
+      SELECT * 
+      FROM `bmhs-ai.dummy_hospital.pasien` 
+      WHERE LOWER(nama_lengkap) LIKE CONCAT('%', LOWER(@nama), '%');
+
+  search-dokter-by-spesialisasi:
+    kind: bigquery-execute-sql
+    source: my-bigquery-source
+    description: Mencari daftar dokter berdasarkan bidang spesialisasi.
+    parameters:
+      - name: spesialisasi
+        type: string
+        description: Spesialisasi dokter (contoh: Anak, Mata, Penyakit Dalam).
+    statement: |
+      SELECT * 
+      FROM `bmhs-ai.dummy_hospital.dokter` 
+      WHERE LOWER(spesialisasi) LIKE CONCAT('%', LOWER(@spesialisasi), '%');
+
+  search-kunjungan-by-keluhan:
+    kind: bigquery-execute-sql
+    source: my-bigquery-source
+    description: Mencari riwayat kunjungan pasien berdasarkan keluhan utama. Hasil diurutkan dari kunjungan terbaru.
+    parameters:
+      - name: keluhan
+        type: string
+        description: Keluhan utama yang dialami pasien (contoh: Demam, Mual).
+    statement: |
+      SELECT * 
+      FROM `bmhs-ai.dummy_hospital.kunjungan` 
+      WHERE LOWER(keluhan_utama) LIKE CONCAT('%', LOWER(@keluhan), '%')
+      ORDER BY tanggal_kunjungan DESC;
+
+toolsets:
+   hospital_toolset:
+     - search-pasien-by-name
+     - search-dokter-by-spesialisasi
+     - search-kunjungan-by-keluhan
