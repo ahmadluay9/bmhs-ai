@@ -11,6 +11,10 @@ from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.auth.transport.requests import Request as GoogleAuthRequest
 import google.oauth2.id_token
 import subprocess
+import requests
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -164,13 +168,8 @@ a2a_app = to_a2a(
                 agent_card=agent_card_path,
                  )
 
-# ---
-import requests
-from fastapi import Request
-from fastapi.responses import JSONResponse
 
 # 1. Define allowed emails (Load from environment variable for security)
-# Example format in .env: ALLOWED_EMAILS=doctor1@bmhs.co.id,admin@bmhs.co.id
 allowed_emails_env = os.getenv("ALLOWED_EMAILS", "")
 ALLOWED_EMAILS =[email.strip() for email in allowed_emails_env.split(",") if email.strip()]
 
@@ -201,13 +200,9 @@ async def restrict_by_email(request: Request, call_next):
         user_info = user_info_resp.json()
         user_email = user_info.get("email")
 
-        # ==========================================
-        # DEBUG LOGS: Check what email was extracted
-        # ==========================================
         print(f"DEBUG: Successfully fetched token info.")
         print(f"DEBUG: Extracted Email -> '{user_email}'")
         print(f"DEBUG: Allowed Emails List -> {ALLOWED_EMAILS}")
-        # ==========================================
 
         if not user_email or user_email not in ALLOWED_EMAILS:
             print(f"DEBUG: Access DENIED for email -> '{user_email}'") # <--- DEBUG LOG
