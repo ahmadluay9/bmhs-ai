@@ -6,6 +6,8 @@ from google.adk.tools.agent_tool import AgentTool
 from google.genai import types
 from toolbox_core import ToolboxSyncClient
 
+from google.adk.a2a.utils.agent_to_a2a import to_a2a
+
 from google.auth.transport.requests import Request
 import google.oauth2.id_token
 import subprocess
@@ -152,3 +154,13 @@ root_agent = Agent(
         mcp_agent_tool
         ]   
 )
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+agent_card_path = os.path.join(current_dir, 'agent.json')
+
+a2a_app = to_a2a(
+                root_agent, 
+                port=8001,
+                agent_card=agent_card_path,
+                 )
+

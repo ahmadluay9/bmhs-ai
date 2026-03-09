@@ -13,3 +13,6 @@ wheels/
 toolbox.exe
 
 .adk
+.gitignore
+
+bmhs_ai_agent/
