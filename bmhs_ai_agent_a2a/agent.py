@@ -8,7 +8,7 @@ from toolbox_core import ToolboxSyncClient
 
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 
-from google.auth.transport.requests import Request
+from google.auth.transport.requests import Request as GoogleAuthRequest
 import google.oauth2.id_token
 import subprocess
 from dotenv import load_dotenv
@@ -28,12 +28,12 @@ def get_bearer_token() -> str:
     credentials, project_id = google.auth.default()
 
     if hasattr(credentials, "id_token_info"):
-         req = Request()
+         req = GoogleAuthRequest()
          credentials.refresh(req)
          token = credentials.token
     else:
          from google.oauth2 import id_token
-         req = Request()
+         req = GoogleAuthRequest()
          
          try:
              token = id_token.fetch_id_token(req, server_url)
@@ -164,3 +164,63 @@ a2a_app = to_a2a(
                 agent_card=agent_card_path,
                  )
 
+# ---
+import requests
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+# 1. Define allowed emails (Load from environment variable for security)
+# Example format in .env: ALLOWED_EMAILS=doctor1@bmhs.co.id,admin@bmhs.co.id
+allowed_emails_env = os.getenv("ALLOWED_EMAILS", "")
+ALLOWED_EMAILS =[email.strip() for email in allowed_emails_env.split(",") if email.strip()]
+
+@a2a_app.middleware("http")
+async def restrict_by_email(request: Request, call_next):
+    public_paths =["/agent.json", "/docs", "/openapi.json"]
+    
+    if request.url.path in public_paths or request.url.path.startswith("/.well-known/"):
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        print("DEBUG: No Bearer token found in the request header.") # <--- DEBUG LOG
+        return JSONResponse(status_code=401, content={"error": "Unauthorized. Bearer token missing."})
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        user_info_resp = requests.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        if user_info_resp.status_code != 200:
+            print(f"DEBUG: Google API rejected token. Status: {user_info_resp.status_code}, Response: {user_info_resp.text}") # <--- DEBUG LOG
+            return JSONResponse(status_code=401, content={"error": "Invalid or expired Google token."})
+            
+        user_info = user_info_resp.json()
+        user_email = user_info.get("email")
+
+        # ==========================================
+        # DEBUG LOGS: Check what email was extracted
+        # ==========================================
+        print(f"DEBUG: Successfully fetched token info.")
+        print(f"DEBUG: Extracted Email -> '{user_email}'")
+        print(f"DEBUG: Allowed Emails List -> {ALLOWED_EMAILS}")
+        # ==========================================
+
+        if not user_email or user_email not in ALLOWED_EMAILS:
+            print(f"DEBUG: Access DENIED for email -> '{user_email}'") # <--- DEBUG LOG
+            return JSONResponse(
+                status_code=403, 
+                content={"error": f"Access denied. Email '{user_email}' is not authorized to use this agent."}
+            )
+            
+        print(f"DEBUG: Access GRANTED for email -> '{user_email}'") # <--- DEBUG LOG
+
+    except Exception as e:
+        print(f"DEBUG: Exception occurred during auth -> {str(e)}") # <--- DEBUG LOG
+        return JSONResponse(status_code=500, content={"error": f"Authentication error: {str(e)}"})
+
+    response = await call_next(request)
+    return response
