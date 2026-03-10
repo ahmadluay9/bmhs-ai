@@ -1,8 +1,8 @@
 sources:
   my-bigquery-source:
     kind: bigquery
-    project: bmhs-ai
-    location: asia-southeast2
+    project: ${GOOGLE_CLOUD_PROJECT}
+    location: ${REGION}
 
 tools:
   search-pasien-by-name:
