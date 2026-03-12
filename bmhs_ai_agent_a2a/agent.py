@@ -1,4 +1,5 @@
 import os
+import json
 from google.adk.agents.llm_agent import Agent
 from google.adk.models.google_llm import Gemini
 from google.adk.tools import VertexAiSearchTool
@@ -162,9 +163,11 @@ root_agent = Agent(
 current_dir = os.path.dirname(os.path.abspath(__file__))
 agent_card_path = os.path.join(current_dir, 'agent.json')
 
+app_port = int(os.environ.get("PORT", 8080))
+
 a2a_app = to_a2a(
                 root_agent, 
-                port=8001,
+                port=app_port,
                 agent_card=agent_card_path,
                  )
 
@@ -182,7 +185,7 @@ async def restrict_by_email(request: Request, call_next):
 
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        print("DEBUG: No Bearer token found in the request header.") # <--- DEBUG LOG
+        print("DEBUG: No Bearer token found in the request header.")
         return JSONResponse(status_code=401, content={"error": "Unauthorized. Bearer token missing."})
 
     token = auth_header.split(" ")[1]
@@ -194,7 +197,7 @@ async def restrict_by_email(request: Request, call_next):
         )
         
         if user_info_resp.status_code != 200:
-            print(f"DEBUG: Google API rejected token. Status: {user_info_resp.status_code}, Response: {user_info_resp.text}") # <--- DEBUG LOG
+            print(f"DEBUG: Google API rejected token. Status: {user_info_resp.status_code}, Response: {user_info_resp.text}")
             return JSONResponse(status_code=401, content={"error": "Invalid or expired Google token."})
             
         user_info = user_info_resp.json()
@@ -205,17 +208,26 @@ async def restrict_by_email(request: Request, call_next):
         print(f"DEBUG: Allowed Emails List -> {ALLOWED_EMAILS}")
 
         if not user_email or user_email not in ALLOWED_EMAILS:
-            print(f"DEBUG: Access DENIED for email -> '{user_email}'") # <--- DEBUG LOG
+            print(f"DEBUG: Access DENIED for email -> '{user_email}'")
             return JSONResponse(
                 status_code=403, 
                 content={"error": f"Access denied. Email '{user_email}' is not authorized to use this agent."}
             )
             
-        print(f"DEBUG: Access GRANTED for email -> '{user_email}'") # <--- DEBUG LOG
+        print(f"DEBUG: Access GRANTED for email -> '{user_email}'")
 
     except Exception as e:
-        print(f"DEBUG: Exception occurred during auth -> {str(e)}") # <--- DEBUG LOG
+        print(f"DEBUG: Exception occurred during auth -> {str(e)}")
         return JSONResponse(status_code=500, content={"error": f"Authentication error: {str(e)}"})
 
     response = await call_next(request)
     return response
+
+@a2a_app.route("/.well-known/agent-card.json", methods=["POST"])
+async def serve_agent_card_post(request): 
+    try:
+        with open(agent_card_path, "r") as f:
+            agent_card_data = json.load(f)
+        return JSONResponse(content=agent_card_data)
+    except FileNotFoundError:
+        return JSONResponse(status_code=404, content={"error": "Agent card not found"})

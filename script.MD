@@ -228,9 +228,11 @@ a2a_app = to_a2a(
 current_dir = os.path.dirname(os.path.abspath(__file__))
 agent_card_path = os.path.join(current_dir, 'agent.json')
 
+app_port = int(os.environ.get("PORT", 8080))
+
 a2a_app = to_a2a(
                 root_agent, 
-                port=8001,
+                port=app_port,
                 agent_card=agent_card_path,
                  )
 ```
@@ -292,4 +294,14 @@ async def restrict_by_email(request: Request, call_next):
 
     response = await call_next(request)
     return response
+
+
+@a2a_app.route("/.well-known/agent-card.json", methods=["POST"])
+async def serve_agent_card_post(request):  
+    try:
+        with open(agent_card_path, "r") as f:
+            agent_card_data = json.load(f)
+        return JSONResponse(content=agent_card_data)
+    except FileNotFoundError:
+        return JSONResponse(status_code=404, content={"error": "Agent card not found"})
 ```
